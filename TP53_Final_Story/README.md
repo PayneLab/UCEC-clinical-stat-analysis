@@ -12,3 +12,7 @@ Using the CPTAC package, we analyzed data from endometrial cancer patients in or
 (5) <b>TP53_Clinical:</b> An analysis of the association between TP53 mutation and various clinical outcomes.
 
 (6) <b>TP53_Transcriptomics:</b> A brief look into the analyses we did of the impact on TP53 mutation on RNA expression of various proteins of interest. This is more of a side note, supplementary to our main analyses but not covered in the manuscript.
+
+(7) <b>TP53_Figures:</b> Code used to generate supplementary figures and other figures for presentations
+
+<b>Images:</b> .png versions of the figures generated in (7)
