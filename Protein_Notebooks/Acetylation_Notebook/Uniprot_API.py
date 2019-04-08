@@ -5,11 +5,12 @@ from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import pyqtSlot
 from xml.etree.ElementTree import Element, SubElement, Comment 
 import pickle, os, numpy as np, pandas as pd
+from tabulate import tabulate
 
 ######################################################################################
 #Here we are gathering all the significant sites for tumor vs non tumor
 ######################################################################################
-import pandas as pd
+'''import pandas as pd
 import numpy as np
 import scipy.stats
 import statsmodels.stats.multitest
@@ -42,17 +43,20 @@ for num in range(1,len(acetyle_clinical_df.columns)):
 
 print("Number of significant sites: ", len(significantSites))
 end_time_sig = time.time()
-print("total time:", (end_time_sig-start_time_sig))
+print("total time:", (end_time_sig-start_time_sig))'''
 ######################################################################################
 #We now should be able to pass anything.. Into a function and call uniprot's API to return a data frame
 ######################################################################################
 
-def inputToDataFrame(name):
+def inputToDataFrame(name, residues="all", sites="all", function=True, positions=[]):
 
-	nameToSites = {}
+	#Goal: Have the gene name be the key and link all items to this key, such as function,
+	#Amino acid modifications, binding sites
+	nameToResidues = {}
 	nameToFullName = {}
 	nameToAlternateName = {}
 	nameToFunction = {}
+	nameToSites = {}
 	
 	tempSiteArray = []
 	tempAlternateNameArray = []
@@ -99,19 +103,32 @@ def inputToDataFrame(name):
 								
 					if 'feature' in entry_elements.tag:
 						for feature_elements in Element.iter(entry_elements):
-							if 'modified residue' == feature_elements.get('type') and 'N6-acetyllysine' in  feature_elements.get('description'):
-								for residue_elements in Element.iter(feature_elements):
-									if residue_elements.get('position') in headToTail[name]:
-										print(name, residue_elements.get('position'))
-										if name in nameToSites:
-											tempSiteArray = nameToSites[name]
-											tempSiteArray.append(residue_elements.get('position'))
-											nameToSites[name] = tempSiteArray
-										else:
-											tempSiteArray = []
-											tempSiteArray.append(residue_elements.get('position'))
-											nameToSites[name] = tempSiteArray
-										headToTail[name].remove(residue_elements.get('position'))
+							if 'modified residue' == feature_elements.get('type'):
+								if residues == "all":
+									for residue_elements in Element.iter(feature_elements):
+										if residue_elements.get('position') != None:
+											print(name, residue_elements.get('position'))
+											if name in nameToResidues:
+												tempSiteArray = nameToResidues[name]
+												tempSiteArray.append(residue_elements.get('position'))
+												nameToResidues[name] = tempSiteArray
+											else:
+												tempSiteArray = []
+												tempSiteArray.append(residue_elements.get('position'))
+												nameToResidues[name] = tempSiteArray
+								elif residues in feature_elements.get('description'):
+									for residue_elements in Element.iter(feature_elements):
+										if residue_elements.get('position') != None:
+											print(name, residue_elements.get('position'))
+											if name in nameToResidues:
+												tempSiteArray = nameToResidues[name]
+												tempSiteArray.append(residue_elements.get('position'))
+												nameToResidues[name] = tempSiteArray
+											else:
+												tempSiteArray = []
+												tempSiteArray.append(residue_elements.get('position'))
+												nameToResidues[name] = tempSiteArray
+								
 									
 					if 'comment' in entry_elements.tag:
 						for comment_elements in Element.iter(entry_elements):
@@ -128,16 +145,21 @@ def inputToDataFrame(name):
 
 	except:
 		print("Error:", name)
+		
 	end_time_loop = time.time()
 	print("Loop time:", (end_time_loop-start_time_loop))
-	df = pd.DataFrame(nameToSites.items(), columns=['Gene', 'Modified Residues'])
-	#Here we can map other dictionaries to this dataframe...
-	#df['exampleColumnName'] = df['key'].map(exampleDictionary)
+	
+	#Map Dictionaries to the DF
+	df = pd.DataFrame(nameToFullName.items(), columns=['Gene', 'Full Name'])
+	df['Alternate Name(s)'] = df['Gene'].map(nameToAlternateName)
+	df['Modified Residues'] = df['Gene'].map(nameToResidues)
+	df['Binding Sites'] = df['Gene'].map(nameToSites)
+	
 	return df
 		
 
 #Removed dashes from proteins (head) and K from numbers (tail)
-headToTail = {}
+'''headToTail = {}
 newListProteins = []
 listOfSites = []
 for dashedProtein in significantSites:
@@ -151,85 +173,16 @@ for dashedProtein in significantSites:
     else:
         listOfSites = []
         listOfSites.append(tail)
-        headToTail[head] = listOfSites
+        headToTail[head] = listOfSites'''
 
-testDataFrame = inputToDataFrame(newListProteins[0])
-print(testDataFrame)
+#Questions: Should we allow an array of gene names? And they can just pass in a single gene in 
+#an array if thats all they want? modifiedResidue description, binding site description, specific sites,
+#
 
-'''#Display the data
-class App(QWidget):
- 
-    def __init__(self):
-        super().__init__()
-        self.title = 'Proteins and their functions'
-        self.left = 0
-        self.top = 0
-        self.width = 1200
-        self.height = 800
-        self.initUI()
- 
-    def initUI(self):
-        self.setWindowTitle(self.title)
-        self.setGeometry(self.left, self.top, self.width, self.height)
- 
-        self.createTable()
- 
-        # Add box layout, add table to box layout and add box layout to widget
-        self.layout = QVBoxLayout()
-        self.layout.addWidget(self.tableWidget) 
-        self.setLayout(self.layout) 
- 
-        # Show widget
-        self.show()
- 
-    def createTable(self):
-        w, h = 8, len(nameToSites);
-        Matrix = [[0 for x in range(w)] for y in range(h)]
+#GeneName, fullName, alternateName, modifiedResidue Description, binding site description, specific sites, 
+testDataFrame = inputToDataFrame("ACIN1", "all", )
 
-        #Create table
-        self.tableWidget = QTableWidget()
-        self.tableWidget.setRowCount(len(Matrix))
-        self.tableWidget.setColumnCount(len(Matrix[0]))
+#testDataFrame.to_html('Uniprot.html')
+testDataFrame.to_csv('Uniprot.csv')
 
-        self.tableWidget.setItem(0,0, QTableWidgetItem("Name"))
-        self.tableWidget.setItem(0,1, QTableWidgetItem("Full Name"))
-        self.tableWidget.setItem(0,2, QTableWidgetItem("Alternate Name"))
-        self.tableWidget.setItem(0,3, QTableWidgetItem("Lysine Modified Residues"))
-        self.tableWidget.setItem(0,4, QTableWidgetItem("Key Words"))
-        self.tableWidget.setItem(0,5, QTableWidgetItem("Linked to..."))
-        self.tableWidget.setItem(0,6, QTableWidgetItem("Function"))
-        self.tableWidget.setItem(0,7, QTableWidgetItem("Pathway"))
-        
-        #for i in range(1,len(nameToSites)):
-        tempInt = 0
-        for key, values in nameToSites.items():
-        	tempInt += 1
-        	self.tableWidget.setItem(tempInt,0, QTableWidgetItem(key))
-        	if key in nameToFullName:
-        		self.tableWidget.setItem(tempInt,1, QTableWidgetItem(nameToFullName[key]))
-        	if key in nameToAlternateName:
-        		self.tableWidget.setItem(tempInt,2, QTableWidgetItem(repr(nameToAlternateName[key])))
-        	self.tableWidget.setItem(tempInt,3, QTableWidgetItem(repr(values)))
-        	if key in nameToFunction:
-        		self.tableWidget.setItem(tempInt,6, QTableWidgetItem(repr(nameToFunction[key])))
-        		
-
-        #Have a dictionary with an ID mapping to an array
-
-        self.tableWidget.move(0,0)
- 
-        # table selection change
-        self.tableWidget.doubleClicked.connect(self.on_click)
- 
-    @pyqtSlot()
-    def on_click(self):
-        print("\n")
-        for currentQTableWidgetItem in self.tableWidget.selectedItems():
-            print(currentQTableWidgetItem.row(), currentQTableWidgetItem.column(), currentQTableWidgetItem.text())
-
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    ex = App()
-    sys.exit(app.exec_())
-
-print(namesToAccession)'''
+#print(tabulate(testDataFrame, headers='keys', tablefmt='psql'))
