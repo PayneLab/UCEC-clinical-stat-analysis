@@ -118,7 +118,7 @@ def gatherBindingSites(geneName, nameToSites, positions, feature_elements):
 
 #Will set a T/F value for each column, that way the user can specify what they want in their df
 def geneToDataFrame(geneName, modifiedResidueDescription="all", siteDescription="all",goDescription="all", 
-fullName = True, alternateName = True, function=True, bindingSite=True, modifiedResidues=True
+fullName = True, alternateName = True, function=True, bindingSite=True, modifiedResidues=True,
 positions=[]):
 
 	nameToResidues = {}
@@ -159,7 +159,17 @@ positions=[]):
 								for altName_elements in Element.iter(protein_elements):
 									insertIntoAltName(geneName, nameToAlternateName, altName_elements.text.strip())
 									
-					#TO DO: Grab all the GO values
+					if 'dbReference' in entry_elements.tag:
+						for db_elements in Element.iter(entry_elements):
+							if 'GO' == db_elements.get('type'):
+								for go_elements in Element.iter(db_elements):
+									if 'term' == go_elements.get('type'):
+										#print(go_elements.get('value'))
+										if goDescription == "all":
+											go_elements.get('value')
+										elif goDescription in go_elements.get('value'):
+											print(geneName, go_elements.get('value'))
+									
 					#TO DO: Grab all the interacting proteins
 									
 							
@@ -203,8 +213,11 @@ positions=[]):
 
 
 #Check: EP300, CREBBP
-significantSites = gatherSignificantSites()
-newListProteins, headToTail = splitHeadAndTail(significantSites)
-for geneName in newListProteins:
-	testDataFrame = geneToDataFrame(geneName, modifiedResidueDescription="acetyl", positions = headToTail[geneName])
-	testDataFrame.to_csv(i+'.csv')
+#significantSites = gatherSignificantSites()
+#newListProteins, headToTail = splitHeadAndTail(significantSites)
+geneToDataFrame("CREBBP", goDescription="p53 binding")
+#for geneName in newListProteins:
+#	if geneName == "CREBBP" or geneName == "EP300":
+#		testDataFrame = geneToDataFrame(geneName, modifiedResidueDescription="acetyl", 
+#		positions = headToTail[geneName], goDescription="p53 binding")
+#		testDataFrame.to_csv(geneName+'.csv')
