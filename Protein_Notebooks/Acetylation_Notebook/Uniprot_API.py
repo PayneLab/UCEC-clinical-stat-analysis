@@ -5,53 +5,122 @@ from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import pyqtSlot
 from xml.etree.ElementTree import Element, SubElement, Comment 
 import pickle, os, numpy as np, pandas as pd
-from tabulate import tabulate
 
-######################################################################################
-#Here we are gathering all the significant sites for tumor vs non tumor
-######################################################################################
-'''import pandas as pd
-import numpy as np
-import scipy.stats
-import statsmodels.stats.multitest
-import matplotlib.pyplot as plt
-import seaborn as sns
-import CPTAC.Endometrial as en
-import math
+#Gather statistically significant sites
+#from acetyle data
+def gatherSignificantSites():
+	import scipy.stats
+	import CPTAC.Endometrial as en
 
-start_time_sig = time.time()
-acetyl = en.get_acetylproteomics()
-clinical_attribute = "Proteomics_Tumor_Normal"
-acetyle_clinical_df = en.compare_clinical(acetyl, clinical_attribute)
+	acetyl = en.get_acetylproteomics()
+	clinical_attribute = "Proteomics_Tumor_Normal"
+	acetyle_clinical_df = en.compare_clinical(acetyl, clinical_attribute)
 
-acetyle_clinical_df.loc[acetyle_clinical_df.Proteomics_Tumor_Normal == 'Adjacent_normal', 'Proteomics_Tumor_Normal'] = 'Non_Tumor'
-acetyle_clinical_df.loc[acetyle_clinical_df.Proteomics_Tumor_Normal == 'Enriched_normal', 'Proteomics_Tumor_Normal'] = 'Non_Tumor'
-acetyle_clinical_df.replace('Myometrium_normal', np.nan, inplace = True) # Set 'Myometrium_normal' to NaN
-tumor = acetyle_clinical_df.loc[acetyle_clinical_df[clinical_attribute] == "Tumor"]
-non_tumor = acetyle_clinical_df.loc[acetyle_clinical_df[clinical_attribute] == "Non_Tumor"]
+	acetyle_clinical_df.loc[acetyle_clinical_df.Proteomics_Tumor_Normal == 'Adjacent_normal', 'Proteomics_Tumor_Normal'] = 'Non_Tumor'
+	acetyle_clinical_df.loc[acetyle_clinical_df.Proteomics_Tumor_Normal == 'Enriched_normal', 'Proteomics_Tumor_Normal'] = 'Non_Tumor'
+	acetyle_clinical_df.replace('Myometrium_normal', np.nan, inplace = True)
+	tumor = acetyle_clinical_df.loc[acetyle_clinical_df[clinical_attribute] == "Tumor"]
+	non_tumor = acetyle_clinical_df.loc[acetyle_clinical_df[clinical_attribute] == "Non_Tumor"]
 
-threshold = .05 / len(acetyle_clinical_df.columns) #Here we find the significant p-value that we want to work with
-P_VALUE_INDEX = 1
-print("Threshold:", threshold)
-significantSites = []
-for num in range(1,len(acetyle_clinical_df.columns)):
-    site = acetyle_clinical_df.columns[num]
-    oneSite = acetyle_clinical_df[[clinical_attribute, site]]
-    ttestRes = scipy.stats.ttest_ind(tumor[site], non_tumor[site])
-    if (ttestRes[P_VALUE_INDEX] < threshold): #Check if there is a significant enough difference between data points
-        significantSites.append(site)
+	threshold = .05 / len(acetyle_clinical_df.columns)
+	P_VALUE_INDEX = 1
+	print("Threshold:", threshold)
+	significantSites = []
+	for num in range(1,len(acetyle_clinical_df.columns)):
+		site = acetyle_clinical_df.columns[num]
+		ttestRes = scipy.stats.ttest_ind(tumor[site], non_tumor[site])
+		if (ttestRes[P_VALUE_INDEX] < threshold):
+			significantSites.append(site)
+	return significantSites
 
-print("Number of significant sites: ", len(significantSites))
-end_time_sig = time.time()
-print("total time:", (end_time_sig-start_time_sig))'''
-######################################################################################
-#We now should be able to pass anything.. Into a function and call uniprot's API to return a data frame
-######################################################################################
+#This function takes the head(gene name)
+#And maps it to its sites
+#CREBBP = [1, 2, 3] etc.
+def splitHeadAndTail(significantSites):
+	headToTail = {}
+	newListProteins = []
+	listOfSites = []
+	for dashedProtein in significantSites:
+		head, sep, tail = dashedProtein.partition('-K')
+	
+		if head not in newListProteins:
+			newListProteins.append(head)
+		if head in headToTail:
+			listOfSites.append(tail)
+			headToTail[head] = listOfSites
+		else:
+			listOfSites = []
+			listOfSites.append(tail)
+			headToTail[head] = listOfSites
+	return newListProteins, headToTail
 
-def inputToDataFrame(name, residues="all", sites="all", function=True, positions=[]):
+def insertIntoModifiedResidues(geneName, nameToResidues, residuePosition):
+	if geneName in nameToResidues:
+		tempSiteArray = nameToResidues[geneName]
+		tempSiteArray.append(residuePosition)
+		nameToResidues[geneName] = tempSiteArray
+	else:
+		tempSiteArray = []
+		tempSiteArray.append(residuePosition)
+		nameToResidues[geneName] = tempSiteArray
 
-	#Goal: Have the gene name be the key and link all items to this key, such as function,
-	#Amino acid modifications, binding sites
+
+def insertIntoSites(geneName, nameToSites, bindingPosition):
+	if geneName in nameToSites:
+		tempBindingSiteArray = nameToSites[geneName]
+		tempBindingSiteArray.append(bindingPosition)
+		nameToSites[geneName] = tempBindingSiteArray
+	else:
+		tempBindingSiteArray = []
+		tempBindingSiteArray.append(bindingPosition)
+		nameToSites[geneName] = tempBindingSiteArray
+		
+def insertIntoAltName(geneName, nameToAlternateName, altName):
+	if geneName in nameToAlternateName:
+		tempAlternateNameArray = nameToAlternateName[geneName]
+		tempAlternateNameArray.append(altName)
+		nameToAlternateName[geneName] = tempAlternateNameArray
+	else:
+		tempAlternateNameArray = [] 
+		tempAlternateNameArray.append(altName)
+		nameToAlternateName[geneName] = tempAlternateNameArray
+		
+def insertIntoFunction(geneName, nameToFunction, functionText):
+	if geneName in nameToFunction:
+		tempNameToFunction = nameToFunction[geneName]
+		tempNameToFunction.append(functionText)
+		nameToFunction[geneName] = tempNameToFunction
+	else:
+		tempNameToFunction = []
+		tempNameToFunction.append(functionText)
+		nameToFunction[geneName] = tempNameToFunction
+		
+def gatherModifiedResidues(geneName, nameToResidues, feature_elements, positions):
+	for residue_elements in Element.iter(feature_elements):
+		if len(positions) > 0:
+			if residue_elements.get('position') != None and residue_elements.get('position') in positions:
+				insertIntoModifiedResidues(geneName, nameToResidues, residue_elements.get('position'))
+		else:
+			if residue_elements.get('position') != None:
+				insertIntoModifiedResidues(geneName, nameToResidues, residue_elements.get('position'))
+				
+def gatherBindingSites(geneName, nameToSites, positions, feature_elements):
+	for binding_elements in Element.iter(feature_elements):
+		if len(positions) > 0:
+			if binding_elements.get('position') != None and binding_elements.get('position') in positions:
+				insertIntoSites(geneName, nameToSites, binding_elements.get('position'))
+				
+		else:
+			if binding_elements.get('position') != None:
+				insertIntoSites(geneName, nameToSites, binding_elements.get('position'))
+				
+				
+
+#Will set a T/F value for each column, that way the user can specify what they want in their df
+def geneToDataFrame(geneName, modifiedResidueDescription="all", siteDescription="all",goDescription="all", 
+fullName = True, alternateName = True, function=True, bindingSite=True, modifiedResidues=True,
+positions=[]):
+
 	nameToResidues = {}
 	nameToFullName = {}
 	nameToAlternateName = {}
@@ -62,14 +131,11 @@ def inputToDataFrame(name, residues="all", sites="all", function=True, positions
 	tempAlternateNameArray = []
 	tempNameToFunction = []
 
-	#for name in newListProteins:
-
-	#intTemp += 1
 	start_time_loop = time.time()
 
 	try:
 		#Call Uniprot API to get the XML response body
-		requestURL = "https://www.uniprot.org/uniprot/?query="+name+" gene:"+name+" AND reviewed:yes AND organism:\"Homo sapiens (Human) [9606]\"&sort=score&format=xml"
+		requestURL = "https://www.uniprot.org/uniprot/?query="+geneName+" gene:"+geneName+" AND reviewed:yes AND organism:\"Homo sapiens (Human) [9606]\"&sort=score&format=xml"
 		responseBody = requests.get(requestURL)
 
 		#Bad request
@@ -80,7 +146,6 @@ def inputToDataFrame(name, residues="all", sites="all", function=True, positions
 		#The root contains all the elements inside the XML
 		root = ET.fromstring(responseBody.content)
 
-		#Parse through XML to gather the Accession ID
 		for root_elements in Element.iter(root):
 			if 'entry' in root_elements.tag:
 				#Loop through elements inside entry tag
@@ -89,62 +154,51 @@ def inputToDataFrame(name, residues="all", sites="all", function=True, positions
 						for protein_elements in Element.iter(entry_elements):
 							if 'recommendedName' in protein_elements.tag:
 								for recName_element in Element.iter(protein_elements):
-										nameToFullName[name] = recName_element.text.strip()
+										nameToFullName[geneName] = recName_element.text.strip()
 							elif 'alternativeName' in protein_elements.tag:
 								for altName_elements in Element.iter(protein_elements):
-									if name in nameToAlternateName:
-										tempAlternateNameArray = nameToAlternateName[name]
-										tempAlternateNameArray.append(altName_elements.text.strip())
-										nameToAlternateName[name] = tempAlternateNameArray
-									else:
-										tempAlternateNameArray = []
-										tempAlternateNameArray.append(altName_elements.text.strip())
-										nameToAlternateName[name] = tempAlternateNameArray
-								
+									insertIntoAltName(geneName, nameToAlternateName, altName_elements.text.strip())
+									
+					if 'dbReference' in entry_elements.tag:
+						for db_elements in Element.iter(entry_elements):
+							if 'GO' == db_elements.get('type'):
+								for go_elements in Element.iter(db_elements):
+									if 'term' == go_elements.get('type'):
+										#print(go_elements.get('value'))
+										if goDescription == "all":
+											go_elements.get('value')
+										elif goDescription in go_elements.get('value'):
+											print(geneName, go_elements.get('value'))
+									
+					#TO DO: Grab all the interacting proteins
+									
+							
 					if 'feature' in entry_elements.tag:
 						for feature_elements in Element.iter(entry_elements):
 							if 'modified residue' == feature_elements.get('type'):
-								if residues == "all":
-									for residue_elements in Element.iter(feature_elements):
-										if residue_elements.get('position') != None:
-											print(name, residue_elements.get('position'))
-											if name in nameToResidues:
-												tempSiteArray = nameToResidues[name]
-												tempSiteArray.append(residue_elements.get('position'))
-												nameToResidues[name] = tempSiteArray
-											else:
-												tempSiteArray = []
-												tempSiteArray.append(residue_elements.get('position'))
-												nameToResidues[name] = tempSiteArray
-								elif residues in feature_elements.get('description'):
-									for residue_elements in Element.iter(feature_elements):
-										if residue_elements.get('position') != None:
-											print(name, residue_elements.get('position'))
-											if name in nameToResidues:
-												tempSiteArray = nameToResidues[name]
-												tempSiteArray.append(residue_elements.get('position'))
-												nameToResidues[name] = tempSiteArray
-											else:
-												tempSiteArray = []
-												tempSiteArray.append(residue_elements.get('position'))
-												nameToResidues[name] = tempSiteArray
-								
+								if modifiedResidueDescription == "all":
+									gatherModifiedResidues(geneName, nameToResidues, feature_elements, positions)
 									
+								elif modifiedResidueDescription in feature_elements.get('description'):
+									gatherModifiedResidues(geneName, nameToResidues, feature_elements, positions)
+										
+							if 'binding site' == feature_elements.get('type'):
+								if siteDescription == "all":
+									gatherBindingSites(geneName, nameToSites, positions, feature_elements)
+									
+								elif siteDescription in feature_elements.get('description'):
+									gatherBindingSites(geneName, nameToSites, positions, feature_elements)
+							
+								
 					if 'comment' in entry_elements.tag:
 						for comment_elements in Element.iter(entry_elements):
 							if 'function' == comment_elements.get('type'):
 								for function_elements in Element.iter(comment_elements):
-									if name in nameToFunction:
-										tempNameToFunction = nameToFunction[name]
-										tempNameToFunction.append(function_elements.text.strip())
-										nameToFunction[name] = tempNameToFunction
-									else:
-										tempNameToFunction = []
-										tempNameToFunction.append(function_elements.text.strip())
-										nameToFunction[name] = tempNameToFunction
+									insertIntoFunction(geneName, nameToFunction, function_elements.text.strip())
+									
 
 	except:
-		print("Error:", name)
+		print("Error:", geneName)
 		
 	end_time_loop = time.time()
 	print("Loop time:", (end_time_loop-start_time_loop))
@@ -156,33 +210,14 @@ def inputToDataFrame(name, residues="all", sites="all", function=True, positions
 	df['Binding Sites'] = df['Gene'].map(nameToSites)
 	
 	return df
-		
 
-#Removed dashes from proteins (head) and K from numbers (tail)
-'''headToTail = {}
-newListProteins = []
-listOfSites = []
-for dashedProtein in significantSites:
-    head, sep, tail = dashedProtein.partition('-K')
-    
-    if head not in newListProteins:
-    	newListProteins.append(head)
-    if head in headToTail:
-        listOfSites.append(tail)
-        headToTail[head] = listOfSites
-    else:
-        listOfSites = []
-        listOfSites.append(tail)
-        headToTail[head] = listOfSites'''
 
-#Questions: Should we allow an array of gene names? And they can just pass in a single gene in 
-#an array if thats all they want? modifiedResidue description, binding site description, specific sites,
-#
-
-#GeneName, fullName, alternateName, modifiedResidue Description, binding site description, specific sites, 
-testDataFrame = inputToDataFrame("ACIN1", "all", )
-
-#testDataFrame.to_html('Uniprot.html')
-testDataFrame.to_csv('Uniprot.csv')
-
-#print(tabulate(testDataFrame, headers='keys', tablefmt='psql'))
+#Check: EP300, CREBBP
+#significantSites = gatherSignificantSites()
+#newListProteins, headToTail = splitHeadAndTail(significantSites)
+geneToDataFrame("CREBBP", goDescription="p53 binding")
+#for geneName in newListProteins:
+#	if geneName == "CREBBP" or geneName == "EP300":
+#		testDataFrame = geneToDataFrame(geneName, modifiedResidueDescription="acetyl", 
+#		positions = headToTail[geneName], goDescription="p53 binding")
+#		testDataFrame.to_csv(geneName+'.csv')
